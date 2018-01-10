@@ -1,9 +1,6 @@
 # Ansible-Core
 This repo is carrying roles and customized modules for all ansible playbooks
 
-## Synopsis
-Ansible acts as a main provisioning engine and orchestrator within SPIN and SSLN. It is based on the roles layout to bring flexibility and simplicity. Roles can be called from playbooks and they support customised variables as arguments.
-
 ## Layout
 All files are grouped into directories and they can refer to each other either relatively or absolutely.
 
