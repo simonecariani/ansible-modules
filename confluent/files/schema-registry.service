@@ -1,0 +1,16 @@
+[Unit]
+Description = Confluent Connect: Schema Registry
+After = network.target remote-fs.target kafka.service
+
+[Service]
+SyslogIdentifier = confluent-schema-registry
+User=confluent
+Group=confluent
+Type = simple
+Environment="LOG_DIR=/var/log/schema-registry"
+ExecStart = /usr/bin/schema-registry-start /etc/schema-registry/schema-registry.properties
+ExecStop = /usr/bin/schema-registry-stop
+
+[Install]
+WantedBy = multi-user.target
+

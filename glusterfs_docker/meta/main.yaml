@@ -1,0 +1,3 @@
+---
+dependencies:
+  - { role: firewall_linux, firewall_linux_ports: [ "24007-24008/tcp", "49152-49156/tcp" ] }

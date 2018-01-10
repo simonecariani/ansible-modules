@@ -1,0 +1,14 @@
+[Unit]
+Description = Kafka Rest Proxy
+After = network.target remote-fs.target schema-registry.service
+
+[Service]
+SyslogIdentifier = confluent-kafka-rest-proxy
+User=confluent
+Group=confluent
+Type = simple
+ExecStart = /usr/bin/kafka-rest-start /etc/kafka-rest/kafka-rest.properties
+ExecStop = /usr/bin/kafka-rest-stop
+
+[Install]
+WantedBy = multi-user.target

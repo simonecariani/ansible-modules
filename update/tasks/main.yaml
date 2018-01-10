@@ -1,0 +1,16 @@
+---
+
+# Update role
+# Scheduling update by using systemd timer
+#
+# Actions:
+# - Scheduling update and reboot
+#
+# Compatibility version: 2.3
+#
+# Variables:
+# Mandatory
+# - update_date (date in systemd.time format)
+
+- name: Scheduling update on {{ update_date }}
+  command: /usr/bin/systemd-run --on-calendar='{{ update_date }}' /bin/bash -c "/usr/bin/yum -y update && /usr/sbin/shutdown -r"

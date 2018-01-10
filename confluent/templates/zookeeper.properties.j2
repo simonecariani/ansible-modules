@@ -1,0 +1,25 @@
+# The number of milliseconds of each tick
+tickTime=2000
+
+# The number of ticks that the initial
+# synchronization phase can take
+initLimit=5
+
+# The number of ticks that can pass between
+# sending a request and getting an acknowledgement
+syncLimit=2
+
+# the directory where the snapshot is stored.
+# do not use /tmp for storage, /tmp here is just
+# example sakes.
+dataDir={{ confluent_zookeeper_datadir|default('/var/lib/zookeeper') }}
+
+# the port at which the clients will connect
+clientPort=2181
+
+# Cluster servers
+{% set count = 1 %}
+{% for host in groups[confluent_cluster_name] %}
+server.{{ count }}={{ hostvars[host].ansible_hostname }}:2888:3888
+{% set count = count + 1 %}
+{% endfor %}

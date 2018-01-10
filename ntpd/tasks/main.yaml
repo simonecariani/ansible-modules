@@ -1,0 +1,22 @@
+- name: Remove chrony
+  yum:
+    name: chrony
+    state: absent
+
+- name: Install ntp
+  yum:
+    name: ntp
+    state: present
+
+- name: Set ntp conf
+  template:
+    src: ntp.conf.j2
+    dest: /etc/ntp.conf
+  notify:
+    - restart ntpd
+
+- name: Start ntpd service and enable at startup
+  service:
+    name: ntpd
+    state: started
+    enabled: yes

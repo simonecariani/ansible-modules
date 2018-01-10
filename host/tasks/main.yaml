@@ -1,0 +1,21 @@
+---
+
+# Host role
+# Adding hosts to /etc/hosts
+#
+# Actions:
+# - Amending /etc/hosts
+#
+# Compatibility version: 2.2.1
+#
+# Variables:
+# Mandatory
+# - host_ip
+# - host_hostname (this may consist hostnames and FQDNs)
+
+- name: Adding {{ host_ip }} {{ host_hostname }}
+  lineinfile:
+    dest: /etc/hosts
+    regexp: '^{{ host_ip|replace(".", "\.") }}'
+    line: "{{ host_ip }} {{ host_hostname }}"
+    state: present

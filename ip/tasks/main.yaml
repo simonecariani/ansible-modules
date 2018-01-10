@@ -1,0 +1,25 @@
+# Ip role
+# Adding or removing additional IP per connection
+#
+# Actions:
+# - Adding additional IP to a connection if 'ip_add' variable is defined
+# - Removing IP from a connection if 'ip_remove' variable is defined
+#
+# Compatibility version: 2.3
+#
+# Variables:
+# Mandatory
+# - ip_address (IP address in CIDR format)
+# - ip_connection (connection)
+#
+# Optional
+# - ip_add (to add IP)
+# - ip_remove (to remove IP)
+
+- name: Adding additional IP {{ ip_address }} to {{ ip_connection }}
+  command: /usr/bin/nmcli c modify '{{ ip_connection }}' +ipv4.addresses '{{ ip_address }}'
+  when: ip_add is defined and ip_add and ip_address is defined and ip_connection is defined
+
+- name: Removing  IP {{ ip_address }} from {{ ip_connection }}
+  command: /usr/bin/nmcli c modify '{{ ip_connection }}' -ipv4.addresses '{{ ip_address }}'
+  when: ip_remove is defined and ip_remove and ip_address is defined and ip_connection is defined

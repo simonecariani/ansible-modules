@@ -1,0 +1,94 @@
+- name: Download Octopus tentacle
+  win_get_url:
+    url: https://download.octopusdeploy.com/octopus/Octopus.Tentacle.{{ octopus_tentacle_version }}-x64.msi
+    dest: C:\Octopus.Tentacle.{{ octopus_tentacle_version }}-x64.msi
+    force: no
+
+    
+- name: Install octopus_tentacle
+  win_shell: msiexec /i C:\Octopus.Tentacle.{{ octopus_tentacle_version }}-x64.msi /quiet
+  args:
+    creates: C:\Program Files\Octopus Deploy\Tentacle\Octopus.Manager.Tentacle.exe      
+
+
+- name: Firewall rule to allow octopus_tentacle port "{{ octopus_tentacle_port }}"
+  action: win_firewall_rule
+  args:
+    name: octopus_tentacle
+    enable: yes
+    state: present
+    localport: "{{ octopus_tentacle_port }}"
+    action: allow
+    direction: In
+    protocol: TCP
+
+
+- name: Ensure Tentacle directory is in the system path
+  win_path:
+    elements:
+    - 'C:\Program Files\Octopus Deploy\Tentacle'
+
+
+- name: Copy PsExec
+  win_copy:
+    src: files/PsExec.exe
+    dest: C:\Windows\System32\PsExec.exe
+
+
+- name: Check if a Octopus Tentacle service is installed
+  win_service:
+    name: OctopusDeploy Tentacle
+  register: service_info
+
+
+- name: Create configuration file
+  win_shell: Tentacle.exe create-instance --instance "Tentacle" --config "C:\Octopus\Tentacle.config" --console
+  args:
+    chdir: C:\Program Files\Octopus Deploy\Tentacle
+  when: not service_info.exists
+
+
+- name: Generate certificate (this command needs to be run as elevated account so we use psexec because runas doesn't accept password from command line)
+  win_psexec:
+    command: Tentacle.exe new-certificate --instance "Tentacle" --if-blank --console
+    elevated: yes
+    username: "{{ ansible_user }}"
+    password: "{{ ansible_password }}"
+  args:
+    chdir: 'C:\Program Files\Octopus Deploy\Tentacle'
+  when: not service_info.exists
+   
+
+- name: Configure trust
+  win_shell: Tentacle.exe configure --instance "Tentacle" --reset-trust --console
+  args:
+    chdir: C:\Program Files\Octopus Deploy\Tentacle
+  when: not service_info.exists
+
+
+- name: Configure Application directory
+  win_shell: Tentacle.exe configure --instance "Tentacle" --home "C:\Octopus" --app "C:\Octopus\Applications" --port "{{ octopus_tentacle_port }}" --console
+  args:
+    chdir: C:\Program Files\Octopus Deploy\Tentacle
+  when: not service_info.exists
+
+
+- name: Configure Thumbprint
+  win_shell: Tentacle.exe configure --instance "Tentacle" --trust "{{ octopus_tentacle_thumbprint }}" --console
+  args:
+    chdir: C:\Program Files\Octopus Deploy\Tentacle
+  when: not service_info.exists
+
+
+- name: Register octopus tentacle to the server
+  win_shell: Tentacle.exe register-with --instance "Tentacle" --server "{{ octopus_tentacle_server }}" --apiKey "{{ octopus_tentacle_apikey }}" --role "{{ octopus_tentacle_environment }}" --environment "{{ octopus_tentacle_environment }}" --comms-style TentaclePassive --console --force
+  args:
+    chdir: C:\Program Files\Octopus Deploy\Tentacle
+  when: not service_info.exists
+
+
+- name: Start Octopus service
+  win_shell: Tentacle.exe service --instance "Tentacle" --install --start --console
+  args:
+    chdir: C:\Program Files\Octopus Deploy\Tentacle
+  when: not service_info.exists

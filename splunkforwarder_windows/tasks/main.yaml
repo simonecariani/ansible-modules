@@ -1,0 +1,74 @@
+- name: Copy splunk forwarder
+  win_copy:
+    src: files/splunkforwarder-6.6.0-1c4f3bbe1aea-x64-release.msi
+    dest: C:\splunkforwarder.msi
+
+
+- name: Copy forwarders conf file
+  win_copy:
+    src: files/splunkclouduf.spl
+    dest: C:\splunkclouduf.spl
+
+
+- name: Increase timeout otherwise Splunk service will fail to stop 
+  win_regedit:
+    path: HKLM:\SYSTEM\CurrentControlSet\Control
+    name: ServicesPipeTimeout
+    data: 60000
+    type: dword
+  register: reboot_required
+
+
+- name: Restart windows after regedit change
+  win_reboot: 
+  when: reboot_required|changed
+
+
+- name: Install splunk forwarder
+  win_shell: msiexec /i C:\splunkforwarder.msi AGREETOLICENSE=yes /quiet
+  args:
+    creates: C:\Program Files\SplunkUniversalForwarder\bin\splunkd.exe
+
+
+- name: Check if the forwarder has been installed
+  win_stat:
+    path: C:\Program Files\SplunkUniversalForwarder\etc\apps\100_sportingindex_splunkcloud
+  register: splunkd_app
+
+
+- name: Install the forwarder 
+  win_shell: .\splunk.exe install app C:\splunkclouduf.spl -auth admin:changeme
+  args:
+    chdir: C:\Program Files\SplunkUniversalForwarder\bin
+  when: splunkd_app.stat.exists == false
+  notify:
+    - restart splunkforwarder
+
+
+- name: Create monitors directory
+  win_file:
+    path: C:\Program Files\SplunkUniversalForwarder\etc\apps\search\local
+    state: directory
+
+
+- name: Delete monitors file
+  win_file:
+    path: C:\Program Files\SplunkUniversalForwarder\etc\apps\search\local\inputs.conf
+    state: absent
+
+
+- name: Create monitors file
+  win_file:
+    path: C:\Program Files\SplunkUniversalForwarder\etc\apps\search\local\inputs.conf
+    state: touch
+
+
+- name:  Add monitors configuration  
+  win_lineinfile: 
+    dest: C:\Program Files\SplunkUniversalForwarder\etc\apps\search\local\inputs.conf 
+    line: |
+      [monitor://{{ item.path }}]\r\n
+      disabled = false\r\n
+      index = {{ item.index }}\r\n
+  with_items: "{{ splunkforwarder_windows_inputs_monitor|default([]) }}"
+  notify: restart splunkforwarder 

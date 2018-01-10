@@ -1,0 +1,15 @@
+[Unit]
+Description=Apache Zookeeper server
+After=network.target remote-fs.target
+
+[Service]
+SyslogIdentifier = confluent-zookeeper
+Type=simple
+User=confluent
+Group=confluent
+Environment="LOG_DIR=/var/log/zookeeper"
+ExecStart=/usr/bin/zookeeper-server-start /etc/kafka/zookeeper.properties
+ExecStop=/usr/bin/zookeeper-server-stop
+
+[Install]
+WantedBy=multi-user.target

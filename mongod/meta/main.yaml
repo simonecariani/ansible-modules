@@ -1,0 +1,3 @@
+---
+dependencies:
+  - { role: firewall_linux, firewall_linux_ports: ["{{ mongod_port|default(27017) }}/tcp"] }

@@ -1,0 +1,5 @@
+- name: Expand the VG adding pv
+  lvg:
+    vg: "{{ lvg_vg }}"
+    pvs: "{{ lvg_pv }}"
+  

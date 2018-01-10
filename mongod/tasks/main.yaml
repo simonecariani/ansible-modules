@@ -1,0 +1,138 @@
+- name: Adding mongo replica hostname members to hosts file
+  lineinfile:
+    dest: /etc/hosts
+    regexp: '^{{ hostvars[item].ansible_default_ipv4.address|replace(".", "\.") }}'
+    line: "{{ hostvars[item].ansible_default_ipv4.address }} {{ hostvars[item].ansible_hostname }}"
+    state: present
+  with_items: "{{ groups[mongod_replicaset] }}"
+
+- name: reload firewall
+  shell: firewall-cmd --reload
+  ignore_errors: yes
+
+- name: Install the mongodb repository
+  template: src=mongodb.repo.j2 dest=/etc/yum.repos.d/mongodb-org.repo
+
+
+- name: Install Mongodb and required packages
+  yum: name={{ item }} state=latest
+  with_items:
+    - python2-pip
+    - mongodb-org
+
+
+- name: Install pymongo required by mongodb_user module
+  pip:
+    name: pymongo
+
+
+- name: Create the directory for the profile to disable the Transparent Huge Pages
+  file:
+    path: /etc/tuned/no-thp
+    owner: root
+    group: root
+    mode: 0755
+    state: directory
+
+
+- name: Copy the profile optimized for Mongodb
+  copy:
+    src: tuned.conf
+    dest: /etc/tuned/no-thp/tuned.conf
+
+
+- name: Copy the script for optimization of Mongodb
+  copy:
+    src: mongod.sh
+    dest: /etc/tuned/no-thp/mongod.sh
+    owner: root
+    group: root
+    mode: 0755
+
+
+- name: Active the profile to disable Transparent Huge Pages
+  shell: tuned-adm profile no-thp
+
+
+- name: Create mongodb database path
+  file:
+    path: "{{ mongod_dbpath }}"
+    owner: mongod
+    group: mongod
+    mode: 0755
+    state: directory
+  when: mongod_dbpath is defined
+
+
+- name: Check if firstnode has been configured in the replicaset
+  shell: grep replSetName /etc/mongod.conf
+  register: replica_is_set
+  when: ansible_default_ipv4.address == groups.{{ mongod_replicaset }}[0]
+  ignore_errors: yes
+
+
+- name: Create the mongodb firstnode  configuration
+  template: src=mongod_firstnode.conf.j2 dest=/etc/mongod.conf
+  when: ansible_default_ipv4.address == groups.{{ mongod_replicaset }}[0] and replica_is_set.rc != 0
+
+
+- name: Create the mongodb configuration file on all the other nodes
+  template: src=mongod.conf.j2 dest=/etc/mongod.conf
+  when: ansible_default_ipv4.address in groups.{{ mongod_replicaset }}[1:] 
+
+
+- name: copy Mongod keyfile   
+  copy: 
+    content: "{{ mongod_key }}"
+    dest: /etc/mongo-keyfile
+    owner: mongod
+    group: mongod
+    mode: 0400
+
+
+- name: Start the mongodb service and enable at startup
+  service:
+    name: mongod
+    state: started
+    enabled: yes
+
+
+- name: Create the Mongodb Admin
+  mongodb_user:
+    database: admin
+    name: admin
+    password: "{{ mongod_admin_password }}"
+    roles: "root"
+    state: present
+    login_port: "{{ mongod_port|default(27017) }}"
+  when: ansible_default_ipv4.address == groups.{{ mongod_replicaset }}[0] and replica_is_set.rc != 0
+
+
+- name: Create the mongodb configuration replica on firstnode
+  template: src=mongod.conf.j2 dest=/etc/mongod.conf
+  register: firstnode_mongo_conf
+  when: ansible_default_ipv4.address == groups.{{ mongod_replicaset }}[0] and replica_is_set.rc != 0
+
+
+- name: Restart the mongodb service when firstnode configuration is changed
+  service:
+    name: mongod
+    state: restarted
+    enabled: yes
+  when: firstnode_mongo_conf.changed
+ 
+
+- name: Create the file to initialize the mongod replica set
+  template: src=repset_init.j2 dest=/tmp/repset_init.js
+  when: ansible_default_ipv4.address == groups.{{ mongod_replicaset }}[0]
+
+
+- name: Get replica status
+  shell: mongo -u admin -p{{ mongod_admin_password }} --port "{{ mongod_port|default(27017) }}" admin --eval "rs.status()"
+  when: ansible_default_ipv4.address == groups.{{ mongod_replicaset }}[0]
+  register: cluster_status
+
+
+- name: Initialize the replicaset if replica is not initialized
+  shell: /usr/bin/mongo -u admin -p{{ mongod_admin_password }} --port "{{ mongod_port|default(27017) }}" admin < /tmp/repset_init.js
+  when: ansible_default_ipv4.address == groups.{{ mongod_replicaset }}[0] and cluster_status.stdout.find('no replset config has been received') != -1

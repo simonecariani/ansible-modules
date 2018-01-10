@@ -1,0 +1,63 @@
+- name: Copy splunk forwarder package
+  copy:
+    src: files/splunkforwarder-6.6.0-1c4f3bbe1aea-linux-2.6-x86_64.rpm
+    dest: /opt/
+    owner: root
+    group: root
+    mode: 0644
+
+
+- name: Copy sportingindex forwarders conf file 
+  copy:
+    src: files/splunkclouduf.spl
+    dest: /opt/
+    owner: root
+    group: root
+    mode: 0644
+
+
+- name: Checking if splunk is installed
+  stat: path=/opt/splunkforwarder
+  register: splunk_path
+
+
+- name: Install Splunk forwarder
+  yum:
+    name: /opt/splunkforwarder-6.6.0-1c4f3bbe1aea-linux-2.6-x86_64.rpm
+    state: present
+  when: splunk_path.stat.exists == false
+
+
+- name: Start splunk
+  shell: /opt/splunkforwarder/bin/splunk start --accept-license
+  when: splunk_path.stat.exists == false
+
+
+- name: Enable boot-start
+  shell: /opt/splunkforwarder/bin/splunk enable boot-start
+  when: splunk_path.stat.exists == false
+
+
+- name: Check if the forwarder has been installed
+  stat: path=/opt/splunkforwarder/etc/apps/100_sportingindex_splunkcloud
+  register: splunkd_app
+
+
+- name: Install the forwarder
+  shell: /opt/splunkforwarder/bin/splunk install app /opt/splunkclouduf.spl -auth admin:changeme
+  when: splunkd_app.stat.exists == false
+  notify:
+    - restart splunkforwarder
+
+
+- name: Create monitors directory
+  file: 
+    path: /opt/splunkforwarder/etc/apps/search/local
+    recurse: yes
+    state: directory
+
+
+- name: Configure splunk monitors
+  template: src="inputs.conf.j2" dest="/opt/splunkforwarder/etc/apps/search/local/inputs.conf"
+  notify: restart splunkforwarder
+  with_items: "{{ splunkforwarder_linux_inputs_monitor|default([]) }}"

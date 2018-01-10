@@ -1,0 +1,29 @@
+- name: Installing snmpd
+  apt:
+    name: snmpd
+    state: present
+  when: ansible_distribution == "Ubuntu"
+
+
+- name: Install snmpd
+  yum:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - net-snmp
+    - net-snmp-utils
+  when: ansible_distribution == "CentOS"
+
+- name: Set ntpd conf
+  template:
+    src: snmpd.conf.j2
+    dest: /etc/snmp/snmpd.conf
+  notify:
+    - restart snmpd
+
+- name: Start SNMP service and enable at startup
+  service:
+    name: snmpd
+    state: started
+    enabled: yes
+  when: ansible_distribution == "CentOS"

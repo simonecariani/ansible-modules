@@ -1,0 +1,16 @@
+[Unit]
+Description=Apache Kafka server (broker)
+Requires=network.target remote-fs.target 
+After=network.target remote-fs.target zookeeper.service
+
+[Service]
+SyslogIdentifier = kafka
+Type=simple
+User=kafka
+Group=kafka
+Environment="JMX_PORT=12345"
+ExecStart=/opt/kafka/bin/kafka-server-start.sh /opt/kafka/config/server.properties
+ExecStop=/opt/kafka/bin/kafka-server-stop.sh
+
+[Install]
+WantedBy=multi-user.target

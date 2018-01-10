@@ -1,0 +1,78 @@
+- name: check if the vm has been already created
+  ovirt_vms:
+    auth:
+      username: "{{ ovirt_windows_ovirt_username }}"
+      password: "{{ ovirt_windows_ovirt_password }}"
+      url: "{{ ovirt_windows_ovirt_url }}"
+      insecure: true
+    name: "{{ ovirt_windows_vmname }}"
+    state: present
+  register: vm_is_present
+  ignore_errors: True
+
+
+
+- name: create the vm only if is not present
+  ovirt_vms:
+    auth:
+      username: "{{ ovirt_windows_ovirt_username }}"
+      password: "{{ ovirt_windows_ovirt_password }}"
+      url: "{{ ovirt_windows_ovirt_url }}"
+      insecure: true
+    name: "{{ ovirt_windows_vmname }}"
+    template: "{{ ovirt_windows_template }}"
+    clone: true
+    cluster: "{{ ovirt_windows_cluster }}"
+    memory: "{{ ovirt_windows_memory }}"
+    cpu_cores: "{{ ovirt_windows_cpu_cores }}"
+    high_availability: true
+    nics:
+      - name: nic1
+        profile_name: "{{ ovirt_windows_network_profile }}"
+        interface: virtio
+    state: stopped
+  register: vm_is_created
+  when: vm_is_present|failed
+
+
+
+- name: add data disk to the vm
+  ovirt_disks:
+    auth:
+      username: "{{ ovirt_windows_ovirt_username }}"
+      password: "{{ ovirt_windows_ovirt_password }}"
+      url: "{{ ovirt_windows_ovirt_url }}"
+      insecure: true
+    name: "{{ ovirt_windows_vmname }}_data"
+    vm_name: "{{ ovirt_windows_vmname }}"
+    size: "{{ ovirt_windows_disksize }}"
+    format: raw
+    interface: virtio
+    storage_domain: "{{ ovirt_windows_datastore }}"
+  when: ovirt_windows_disksize is defined and ovirt_windows_datastore is defined
+
+
+
+- name: start the vm using the sysprep template
+  ovirt_sysprep:
+    auth:
+      username: "{{ ovirt_windows_ovirt_username }}"
+      password: "{{ ovirt_windows_ovirt_password }}"
+      url: "{{ ovirt_windows_ovirt_url }}"
+      insecure: true
+    hostname: "{{ ovirt_windows_vmname }}"
+    admin_password: "{{ ovirt_windows_admin_password }}"
+    dns_servers: "{{ ovirt_windows_dns_servers }}"
+    dns_search: "{{ ovirt_windows_dns_search }}"
+    nic_ip_address: "{{ ovirt_windows_nic_address }}"
+    nic_netmask: "{{ ovirt_windows_nic_netmask }}"
+    nic_gateway: "{{ ovirt_windows_nic_gateway }}"
+  when: vm_is_created|changed
+
+
+
+- name: wait the vm to be manageable via ansible
+  wait_for:
+    host: "{{ ovirt_windows_nic_address }}"
+    port: 5986
+  delegate_to: localhost

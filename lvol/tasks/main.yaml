@@ -1,0 +1,55 @@
+---
+
+# Lvol role
+# Creating a logical volume and putting XFS on the top.
+#
+# Actions:
+# - creating VG if it does not exist. A 'lvol_pv' variable is a must in this
+#   case
+# - creating LV
+# - creating XFS
+#
+# Compatibility version: 2.2.1
+#
+# Variables:
+# Mandatory
+# - lvol_vg (volume group name)
+# - lvol_lv (logical volume name)
+# - lvol_size (the size of the logical volume, according to lvcreate(8) --size,
+#              by default in megabytes or optionally with one of
+#              [bBsSkKmMgGtTpPeE] units; or according to lvcreate(8) --extents
+#              as a percentage of [VG|PVS|FREE]; Float values must begin with
+#              a digit)
+# Optional
+# - lvol_pv (only if VG does not exist and it must to be created)
+
+- name: Refreshing facts
+  setup:
+
+- name: Creating VG {{ lvol_vg }}
+  lvg:
+    vg: "{{ lvol_vg }}"
+    pvs: "{{ lvol_pv }}"
+  when: ansible_lvm.vgs.{{ lvol_vg }} is not defined
+
+- name: Refreshing facts
+  setup:
+  when: ansible_lvm.vgs.{{ lvol_vg }} is not defined
+
+- name: Creating LV {{ lvol_lv }}
+  lvol:
+    vg: "{{ lvol_vg }}"
+    lv: "{{ lvol_lv }}"
+    size: "{{ lvol_size }}"
+    state: present
+  when: ansible_lvm.vgs.{{ lvol_vg }} is defined
+
+- name: Refreshing facts
+  setup:
+  when: ansible_lvm.vgs.{{ lvol_vg }} is defined
+
+- name: Creating FS on {{ lvol_lv }}
+  filesystem:
+    dev: /dev/mapper/{{ lvol_vg }}-{{ lvol_lv }}
+    fstype: xfs
+  when: ansible_lvm.lvs.{{ lvol_lv }} is defined

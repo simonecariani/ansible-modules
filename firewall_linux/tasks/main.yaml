@@ -1,0 +1,9 @@
+- name: Enable firewall ports
+  firewalld:
+    port: "{{ item }}"
+    permanent: true
+    state: enabled
+  with_items:
+    - "{{ firewall_linux_ports }}"
+  notify: 
+    - reload firewall

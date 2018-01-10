@@ -1,0 +1,139 @@
+- name: Adding kafka cluster members to hosts file
+  lineinfile:
+    dest: /etc/hosts
+    regexp: '^{{ hostvars[item].ansible_default_ipv4.address|replace(".", "\.") }}'
+    line: "{{ hostvars[item].ansible_default_ipv4.address }} {{ hostvars[item].ansible_hostname }}"
+    state: present
+  with_items: "{{ groups[confluent_cluster_name] }}"
+
+- name: reload firewall
+  shell: firewall-cmd --reload
+  ignore_errors: yes
+
+- name: Import Confluent repo 
+  copy:
+    src: confluent.repo
+    dest: /etc/yum.repos.d/confluent.repo 
+    owner: root
+    group: root   
+    mode: 0644
+
+- name: Clean yum cache
+  shell: yum clean all
+
+- name: Install Open JDK 1.8
+  yum:
+    name: java-1.8.0-openjdk
+    state: present
+
+- name: Create Confluent env profile
+  copy:
+    src: confluent.sh
+    dest: /etc/profile.d/confluent.sh
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Source the profile file
+  shell: source /etc/profile.d/confluent.sh
+
+- name: Install Confluent Open Source Edition
+  yum:
+    name: confluent-platform-oss-2.11
+    state: present
+
+- name: Create Confluent user
+  user:
+    name: confluent
+    shell: /sbin/nologin
+    home: /dev/null
+    comment: 'Confluent Platform'
+ 
+- name: Create Confluent directories
+  file: 
+    path: "{{ item }}" 
+    state: directory
+    owner: confluent
+    group: confluent
+    mode: 0755
+  with_items:
+    - "{{ confluent_zookeeper_datadir|default('/var/lib/zookeeper') }}"
+    - "{{ confluent_kafka_datadir|default('/var/lib/kafka') }}"
+    - "/var/log/zookeeper"
+    - "/var/log/kafka"
+    - "/var/log/schema-registry"
+
+- name: Set Zookeeper conf
+  template: src=zookeeper.properties.j2 dest=/etc/kafka/zookeeper.properties
+
+- name: Set Zookeeper node id
+  template: src=zookeeper-id.j2 dest={{ confluent_zookeeper_datadir|default('/var/lib/zookeeper') }}/myid
+
+- name: Create Zookeeper unit service
+  copy:
+    src: zookeeper.service
+    dest: /etc/systemd/system/zookeeper.service
+    owner: root
+    group: root
+    mode: 0644
+
+
+- name: Set Kafka conf
+  template: src=server.properties.j2 dest=/etc/kafka/server.properties 
+
+- name: Create Kafka unit service
+  copy:
+    src: kafka.service
+    dest: /etc/systemd/system/kafka.service
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Set Schema Registry conf
+  template: src=schema-registry.properties.j2 dest=/etc/schema-registry/schema-registry.properties
+
+- name: Create Schema Registry unit service
+  copy:
+    src: schema-registry.service
+    dest: /etc/systemd/system/schema-registry.service
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Set Kafka Rest Proxy conf
+  template: src=kafka-rest.properties.j2 dest=/etc/kafka-rest/kafka-rest.properties
+
+- name: Create Kafka Rest Proxy unit service
+  copy:
+    src: kafka-rest-proxy.service
+    dest: /etc/systemd/system/kafka-rest-proxy.service
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Reload systemctl
+  shell: systemctl daemon-reload
+
+- name: Start Zookeeper service and enable at startup
+  service:
+    name: zookeeper
+    state: started
+    enabled: yes
+
+- name: Start Kafka service and enable at startup
+  service:
+    name: kafka
+    state: started
+    enabled: yes
+
+- name: Start Schema Registry and enable at startup
+  service:
+    name: schema-registry
+    state: started
+    enabled: yes
+
+- name: Start Kafka Rest Proxy and enable at startup
+  service:
+    name: kafka-rest-proxy
+    state: started
+    enabled: yes

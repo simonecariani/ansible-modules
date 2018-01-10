@@ -1,0 +1,107 @@
+---
+
+# Glusterfs role
+# Creating glusterfs storage clusters, bricks and volumes. This covers
+# replicated nodes only.
+#
+# Actions:
+# - installing glusterfs repo if 'glusterfs_install' variable is defined
+# - installing glusterfs packages if 'glusterfs_install' variable is defined
+# - enabling glusterfs
+# - including vars
+# - probing peer
+# - crteating volume
+# - creating uid
+# - creating gid
+# - enabling shard
+# - tuning for performance
+# - activating volume
+#
+# Compatibility version: 2.2.1
+#
+# Variables:
+# Mandatory
+# - glusterfs_first (True/False only one node can act as first)
+# - glusterfs_vars (a file which contains the rest of variables)
+#
+# Optional
+# - glusterfs_install (includes glusterfs version to be installed and it is a
+#                      number without dot between version and subversion, for
+#                      instance 38 which means version 3.8)
+# Optional vars file
+# - glusterfs_peers (a list of peers)
+# - glusterfs_volume (volume name)
+# - glusterfs_replica (a number of bricks to be replicated)
+# - glusterfs_hosts (a one line list of hosts and brick paths, for instance
+#                    host1:/path/brick host2:/path/brick)
+# - glusterfs_uid (uid definition for access control list)
+# - glusterfs_gid (gid definition for access control list)
+# - glusterfs_shard (True/False to enable shard translator)
+# - glusterfs_block (block size consists a number and unit if shard translator
+#                    is enabled, for instance 512MB)
+# - glusterfs_performance (True/False to enable performance for a hypervisors
+#                          purpose)
+# - glusterfs_activate (True/False to activate volume)
+
+- name: Installing glusterfs repo
+  yum:
+    name: "centos-release-gluster{{ glusterfs_install }}"
+    state: present
+  when: glusterfs_install is defined
+
+- name: Installing glusterfs
+  yum:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - glusterfs
+    - glusterfs-cli
+    - glusterfs-libs
+    - glusterfs-server
+  when: glusterfs_install is defined
+
+- name: Enabling gluster
+  systemd:
+    name: glusterd
+    enabled: yes
+    state: started
+  when: glusterfs_install is defined
+
+- name: Including vars
+  include_vars: "{{ glusterfs_vars }}"
+  when: glusterfs_first
+
+- name: Probing peers
+  command: "/usr/sbin/gluster peer probe {{ item }}"
+  when: glusterfs_first and glusterfs_peers is defined
+  with_items: "{{ glusterfs_peers }}"
+
+- name: Creating volume {{ glusterfs_volume }}
+  command: "/usr/sbin/gluster volume create {{ glusterfs_volume }} replica {{ glusterfs_replica }} {{ glusterfs_hosts }}"
+  when: glusterfs_first and glusterfs_volume is defined
+
+- name: Setting uid {{ glusterfs_uid }}
+  command: "/usr/sbin/gluster volume set {{ glusterfs_volume }} storage.owner-uid {{ glusterfs_uid }}"
+  when: glusterfs_first and glusterfs_uid is defined
+
+- name: Setting gid {{ glusterfs_gid }}
+  command: "/usr/sbin/gluster volume set {{ glusterfs_volume }} storage.owner-uid {{ glusterfs_gid }}"
+  when: glusterfs_first and glusterfs_gid is defined
+
+- name: Enabling shard
+  command: "{{ item }}"
+  when: glusterfs_first and glusterfs_shard
+  with_items:
+    - "/usr/sbin/gluster volume set {{ glusterfs_volume }} features.shard on"
+    - "/usr/sbin/gluster volume set {{ glusterfs_volume }} features.shard-block-size {{ glusterfs_block }}"
+
+- name: Tuning for performance
+  command: "{{ item }}"
+  when: glusterfs_first and glusterfs_performance
+  with_items:
+    - "/usr/sbin/gluster volume set {{ glusterfs_volume }} performance.low-prio-threads 32"
+    - "/usr/sbin/gluster volume set {{ glusterfs_volume }} cluster.data-self-heal-algorithm full"
+
+- name: Activating volume {{ glusterfs_volume }}
+  command: "/usr/sbin/gluster volume start {{ glusterfs_volume }}"
+  when: glusterfs_first and glusterfs_activate

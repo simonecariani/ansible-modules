@@ -1,0 +1,129 @@
+- name: Adding kafka cluster members to hosts file
+  lineinfile:
+    dest: /etc/hosts
+    regexp: '^{{ hostvars[item].ansible_default_ipv4.address|replace(".", "\.") }}'
+    line: "{{ hostvars[item].ansible_default_ipv4.address }} {{ hostvars[item].ansible_hostname }}.gb.sportingindex.com {{ hostvars[item].ansible_hostname }}"
+    state: present
+  with_items: "{{ groups[kafka_cluster_name] }}"
+
+- name: reload firewall
+  shell: firewall-cmd --reload
+  ignore_errors: yes
+
+
+- name: Clean yum cache
+  shell: yum clean all
+
+- name: Install Open JDK 1.8
+  yum:
+    name: java-1.8.0-openjdk
+    state: present
+
+- name: Create java env profile
+  copy:
+    src: java.sh
+    dest: /etc/profile.d/java.sh
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Source the profile file
+  shell: source /etc/profile.d/java.sh
+
+- name: Download Kafka
+  get_url:
+    url: http://apache.mirror.anlx.net/kafka/0.11.0.2/kafka_2.11-0.11.0.2.tgz
+    dest: /opt/kafka_2.11-0.11.0.2.tgz
+    mode: 0440
+
+- name: Extract Kafka
+  unarchive:
+    src: /opt/kafka_2.11-0.11.0.2.tgz
+    dest: /opt
+    remote_src: yes
+
+- name: Create symbolic link
+  file:
+    src: /opt/kafka_2.11-0.11.0.2
+    dest: /opt/kafka
+    state: link
+
+- name: Create kafka user
+  user:
+    name: kafka
+    shell: /sbin/nologin
+    home: /dev/null
+    comment: 'Kafka user'
+
+- name: Set permissions of Kafka directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: kafka
+    group: kafka
+    mode: 0755
+  with_items:
+    - "/opt/kafka_2.11-0.11.0.2"
+    - "{{ kafka_datadir|default('/var/lib/kafka') }}"
+    - "{{ zookeeper_datadir|default('/var/lib/zookeeper') }}"
+    - "/var/log/zookeeper"
+    - "/var/log/kafka"
+
+- name: Set Zookeeper conf
+  template: 
+    src: zookeeper.properties.j2
+    dest: /opt/kafka/config/zookeeper.properties
+    owner: kafka
+    group: kafka
+
+- name: Set Zookeeper node id
+  template: 
+    src: zookeeper-id.j2
+    dest: "{{ zookeeper_datadir|default('/var/lib/zookeeper') }}/myid"
+    owner: kafka
+    group: kafka
+
+- name: Create Zookeeper unit service
+  copy:
+    src: zookeeper.service
+    dest: /etc/systemd/system/zookeeper.service
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Set Kafka conf
+  template: 
+    src: server.properties.j2
+    dest: /opt/kafka/config/server.properties 
+    owner: kafka
+    group: kafka
+
+- name: Create Kafka unit service
+  copy:
+    src: kafka.service
+    dest: /etc/systemd/system/kafka.service
+    owner: root
+    group: root
+    mode: 0644
+
+- name: enable JMX monitoring
+  replace:
+    path: /opt/kafka/bin/kafka-run-class.sh
+    regexp: '^  KAFKA_JMX_OPTS="\$KAFKA_JMX_OPTS -Dcom.sun.management.jmxremote.port=\$JMX_PORT "'
+    replace: '  KAFKA_JMX_OPTS="$KAFKA_JMX_OPTS -Dcom.sun.management.jmxremote.port=$JMX_PORT -Dcom.sun.management.jmxremote.rmi.port=$JMX_PORT "'
+
+- name: Reload systemctl
+  shell: systemctl daemon-reload
+
+- name: Start Zookeeper service and enable at startup
+  service:
+    name: zookeeper
+    state: started
+    enabled: yes
+
+- name: Start Kafka service and enable at startup
+  service:
+    name: kafka
+    state: started
+    enabled: yes
+

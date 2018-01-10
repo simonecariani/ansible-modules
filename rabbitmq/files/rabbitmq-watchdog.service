@@ -1,0 +1,11 @@
+[Unit]
+Description=rabbitmq-watchdog
+
+
+[Service]
+ExecStart=/usr/bin/nohup /usr/local/bin/rabbitmq-watchdog >/dev/null 2
+Type=simple
+
+
+[Install]
+WantedBy=multi-user.target

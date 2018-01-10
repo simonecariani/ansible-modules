@@ -1,0 +1,31 @@
+##
+# Copyright 2015 Confluent Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+##
+
+{% set count = 1 %}
+{% for host in groups[confluent_cluster_name] %}
+{% if ansible_default_ipv4.address|string() == host|string() %}
+id={{ count }}
+{% endif %}
+{% set count = count + 1 %}
+{% endfor %}
+
+schema.registry.url={% for host in groups[confluent_cluster_name] %}
+http://{{hostvars[host].ansible_hostname}}:8081{% if not loop.last %}{{','}}{% endif %}
+{% endfor %}
+
+zookeeper.connect={% for host in groups[confluent_cluster_name] %}
+{{hostvars[host].ansible_hostname}}:2181{% if not loop.last %}{{','}}{% endif %}
+{% endfor %}

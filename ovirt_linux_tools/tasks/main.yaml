@@ -1,0 +1,38 @@
+- name: create repo
+  copy:
+    src: ovirt-guest-agent.list
+    dest: /etc/apt/sources.list.d/ovirt-guest-agent.list
+  when: ansible_distribution == "Ubuntu"
+
+- name: Installing ovirt tools
+  apt:
+    name: ovirt-guest-agent
+    state: present
+  when: ansible_distribution == "Ubuntu"
+
+- name: install the ovirt repo
+  yum:
+    name: http://plain.resources.ovirt.org/pub/yum-repo/ovirt-release41.rpm
+    state: present
+  when: ansible_distribution == "CentOS"
+
+- name: install ovirt tools
+  yum:
+    name: ovirt-guest-agent-common
+    state: present
+  when: ansible_distribution == "CentOS"
+
+- name: set logs permissions
+  file:
+    path: /var/log/ovirt-guest-agent
+    state: directory
+    owner: ovirtagent
+    group: ovirtagent
+    mode: 0755
+
+- name: Start the ovirt-guest-agent service and enable at startup   
+  service:     
+    name: ovirt-guest-agent
+    state: started
+    enabled: yes
+  when: ansible_distribution == "CentOS"

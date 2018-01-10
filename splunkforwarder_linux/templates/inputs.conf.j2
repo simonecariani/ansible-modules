@@ -1,0 +1,5 @@
+{% for item in splunkforwarder_linux_inputs_monitor %}
+[monitor://{{ item.path }}]
+      disabled = false
+      index = {{ item.index }}
+{% endfor %}

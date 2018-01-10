@@ -1,0 +1,11 @@
+## Mkdir role
+Creating directories and subdirectories
+
+### Actions:
+- creating directories
+
+### Compatibility version: 2.2.1
+
+### Variable:
+Mandatory
+- mkdir_path (path to directory, all immediate subdirectories will be created if they do not exist)

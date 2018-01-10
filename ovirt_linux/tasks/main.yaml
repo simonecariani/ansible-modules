@@ -1,0 +1,85 @@
+- name: check if the vm has been already created
+  ovirt_vms:
+    auth:
+      username: "{{ ovirt_linux_ovirt_username }}"
+      password: "{{ ovirt_linux_ovirt_password }}"
+      url: "{{ ovirt_linux_ovirt_url }}"
+      insecure: true
+    name: "{{ ovirt_linux_vmname }}"
+    state: present
+  register: vm_is_present
+  ignore_errors: True
+
+
+
+- name: create the linux vm from template
+  ovirt_vms:
+    auth:
+      username: "{{ ovirt_linux_ovirt_username }}"
+      password: "{{ ovirt_linux_ovirt_password }}"
+      url: "{{ ovirt_linux_ovirt_url }}"
+      insecure: true
+    name: "{{ ovirt_linux_vmname }}"
+    template: "{{ ovirt_linux_template }}"
+    clone: true
+    cluster: "{{ ovirt_linux_cluster }}"
+    memory: "{{ ovirt_linux_memory }}"
+    cpu_cores: "{{ ovirt_linux_cpu_cores }}"
+    high_availability: true
+    nics:
+      - name: nic1
+        profile_name: "{{ ovirt_linux_network_profile }}"
+        interface: virtio
+    state: stopped
+  register: vm_is_created
+  when: vm_is_present|failed
+
+
+- name: start the vm using cloud-init
+  ovirt_vms:
+    auth:
+      username: "{{ ovirt_linux_ovirt_username }}"
+      password: "{{ ovirt_linux_ovirt_password }}"
+      url: "{{ ovirt_linux_ovirt_url }}"
+      insecure: true
+    name: "{{ ovirt_linux_vmname }}"
+    state: running
+    cloud_init:
+       nic_boot_protocol: static
+       nic_ip_address: "{{ ovirt_linux_nic_address }}"
+       nic_netmask: "{{ ovirt_linux_nic_netmask }}"
+       nic_gateway: "{{ ovirt_linux_nic_gateway }}"
+       dns_servers: "{{ovirt_linux_dns_servers}}"
+       dns_search: "{{ ovirt_linux_dns_search }}"
+       nic_name: eth0
+       nic_on_boot: true
+       host_name: "{{ ovirt_linux_vmname }}"
+       user_name: root
+       root_password: "{{ ovirt_linux_root_password }}"
+       custom_script: |
+         ssh_authorized_keys:
+           - "{{ ovirt_linux_ssh_ansible_key }}" 
+  when: vm_is_created|changed
+
+
+- name: add data disk to the vm
+  ovirt_disks:
+    auth:
+      username: "{{ ovirt_linux_ovirt_username }}"
+      password: "{{ ovirt_linux_ovirt_password }}"
+      url: "{{ ovirt_linux_ovirt_url }}"
+      insecure: true
+    name: "{{ ovirt_linux_vmname }}_data"
+    vm_name: "{{ ovirt_linux_vmname }}"
+    size: "{{ ovirt_linux_disksize }}"
+    format: raw
+    interface: virtio
+    storage_domain: "{{ ovirt_linux_datastore }}"
+  when: ovirt_linux_disksize is defined and ovirt_linux_datastore is defined
+
+
+- name: wait the vm to be manageable via ansible
+  wait_for: 
+    host: "{{ ovirt_linux_nic_address }}" 
+    port: 22
+  delegate_to: localhost

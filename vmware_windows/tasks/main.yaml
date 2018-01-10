@@ -1,0 +1,33 @@
+- name: Create a Windows VM from a template
+  vmware_guest:
+    hostname: "{{ vmware_windows_vcenter_hostname }}"
+    username: "{{ vmware_windows_vcenter_username }}"
+    password: "{{ vmware_windows_vcenter_password }}"
+    validate_certs: no
+    name: "{{ vmware_windows_hostname }}"
+    annotation: "Created by ansible"
+    datacenter: "{{ vmware_windows_datacenter }}"
+    cluster: "{{ vmware_windows_cluster }}"
+    resource_pool: "{{ vmware_windows_resource_pool | default(omit) }}"
+    folder: "{{ vmware_windows_folder | default(omit) }}"
+    state: poweredon
+    template: "{{ vmware_windows_template }}"
+    disk:
+    - size_gb: "{{ vmware_windows_disk_size }}"
+      datastore: "{{ vmware_windows_datastore }}"
+    hardware:
+      memory_mb: "{{ vmware_windows_memory }}"
+      num_cpus: "{{ vmware_windows_vcpus }}"
+      scsi: paravirtual
+    networks:
+    - name: "{{ vmware_windows_network | default('VM Network') }}"
+      ip: "{{ vmware_windows_ip }}"
+      netmask: "{{ vmware_windows_netmask }}"
+      gateway: "{{ vmware_windows_gateway }}"
+    customization:
+      password: "{{ vmware_windows_admin_password }}"
+      dns_servers: "{{ vmware_windows_dns_servers }}"
+      domain: "{{ vmware_windows_domain }}"
+    wait_for_ip_address: yes
+  delegate_to: localhost
+

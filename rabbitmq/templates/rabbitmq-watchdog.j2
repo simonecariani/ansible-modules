@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+
+sleep 300
+while :; do
+
+	SESSION="Session $(date +%b" "%d" "%H:%M:%S)\n\n"
+	PID=$(sed -n 1p /var/lib/rabbitmq/mnesia/rabbit\@$(hostname -s).pid)
+	PROCESS=$(ps aux | grep [r]abbitmq_server | grep "^rabbitmq"| awk '{print $2}')
+	SERVICE=$(systemctl status rabbitmq-server | awk '/Active:/ {print $2" "$3}')
+	STATUS=$(rabbitmqctl status | awk -F"," '/uptime/ {gsub("}]",""); print $2}')
+	SCORE=0
+
+	if [[ ! -z ${NOTIFICATION} ]] && [[ ${NOTIFICATION} -lt $(($(date +%H%M | sed 's/^0*//')-10)) ]]; then
+		NOTIFICATION=""
+	fi
+
+
+	if [[ ${PID} -gt 0 ]]; then
+		SESSION="${SESSION}PID file exists\n"
+	else
+		SESSION="${SESSION}PID file does not exist\n"
+		SCORE=$((${SCORE}+1))
+	fi
+
+	if [[ ${PROCESS} -gt 0 ]]; then
+                SESSION="${SESSION}Process exists\n"
+        else
+                SESSION="${SESSION}Process does not exist\n"
+                SCORE=$((${SCORE}+2))
+        fi
+
+	if [[ ${PID} -eq ${PROCESS} ]]; then
+		SESSION="${SESSION}PID file matches existing process\n"
+	else
+		SESSION="${SESSION}PID file does not match existing process\n"
+		SCORE=$((${SCORE}+4))
+	fi
+
+	if [[ ${SERVICE} == "active (running)" ]]; then
+		SESSION="${SESSION}Service is running\n"
+	else
+		SESSION="${SESSION}Service is not running\n"
+		SCORE=$((${SCORE}+8))
+	fi
+
+	if [[ ${STATUS} =~ ^[0-9]+$ ]] && [[ ${STATUS} -gt 0 ]]; then
+		SESSION="${SESSION}Status is up\n"
+	else
+		SESSION="${SESSION}Status is down\n"
+		SCORE=$((${SCORE}+16))
+	fi
+
+	if [[ ${SCORE} -eq 0 ]]; then
+		SESSION=""
+		PID=""
+		PROCESS=""
+		SERVICE=""
+		STATUS=""
+		sleep 10
+	else
+		grep -E ''$(date +%b)"  "$(printf '%0d' $(date +%d))" "$(($(date +%H | sed 's/^0*//')-1))'|'$(date +%b)"  "$(printf '%0d' $(date +%d))" "$(date +%H)'' /var/log/messages > /tmp/messages; tar -czf /tmp/messages.tar.gz --remove-files /tmp/messages
+
+		grep -A 5 -E ''$(printf '%0d' $(date +%d))-$(date +%b-%Y)::$(($(date +%H | sed 's/^0*//')-1))'|'$(printf '%0d' $(date +%d))-$(date +%b-%Y)::$(date +%H)'' /var/log/rabbitmq/rabbit@$(hostname -s).log > /tmp/rabbit@$(hostname -s).log; tar -czf /tmp/rabbit@$(hostname -s).log.tar.gz --remove-files /tmp/rabbit@$(hostname -s).log
+
+		case ${SCORE} in
+			1|2|3|4|5|6|7)
+				SESSION="${SESSION}\nWARNING: At least one of the integral dependencies is unavailable and may causes instability of the service.\n\nThis needs a manual intervention\n"
+				ALERT=WARNING
+				;;
+			8|9,12,13|16|17|20|21)
+				SESSION="${SESSION}\nWARNING: Service is beyond the systemd or can not be accessed via management plugin but process exists and it is responsive. Some connections or messages may still work whilst others not.\n\nThis needs a manual intervention\n"
+                                ALERT=WARNING
+				;;
+			10|11|14|15|18|19|22|23|24|25|26|27|28|29|30|31)
+				SESSION="${SESSION}\nCRITICAL: Service is beyond the systemd or it is unavailable and seems to be frozen or killed. Bringing it back.\n"
+                                ALERT=CRITICAL
+
+				if [[ ! -z $(ps -u rabbitmq) ]]; then
+					pkill -9 -u rabbitmq
+				fi
+
+				rm -rf /var/lib/rabbitmq/mnesia/rabbit\@$(hostname -s).pid
+				systemctl stop rabbitmq-server
+				systemctl start rabbitmq-server
+				sleep 10
+
+				SERVICE=$(systemctl status rabbitmq-server | awk '/Active:/ {print $2" "$3}')
+				PROCESS=$(ps aux | grep [r]abbitmq_server | awk '{print $2}')
+
+				if [[ ${SERVICE} != "active (running)" ]] && [[ -z ${PROCESS} ]]; then
+					SESSION="${SESSION}\nCan not bring the service back. An urgent intervention required.\n"
+				else
+					SESSION="${SESSION}\nService has been restarted.\n"
+				fi
+                                ;;
+		esac
+
+		SESSION="${SESSION}\nScore: ${SCORE}\n"
+		if [[ -z ${NOTIFICATION} ]]; then
+
+
+		case ${ALERT} in
+				WARNING)
+					echo -e "${SESSION}\nRelated logs attached\n" | mail -s "Service rabbitmq ${ALERT} alert" -a /tmp/messages.tar.gz -a /tmp/rabbit@$(hostname -s).log.tar.gz "{{ rabbitmq_watchdog_email|default("")}}"
+					;;
+				CRITICAL)
+					echo -e "${SESSION}\n>Related logs attached\n" | mail -s "Service rabbitmq ${ALERT} alert" -a /tmp/messages.tar.gz -a /tmp/rabbit@$(hostname -s).log.tar.gz "{{ rabbitmq_watchdog_email|default("")}}"
+					;;
+			esac
+
+		NOTIFICATION=$(date +%H%M | sed 's/^0*//')
+		fi
+
+		rm -rf /tmp/messages.tar.gz
+		rm -rf /tmp/rabbit@$(hostname -s).log.tar.gz
+
+		SESSION=""
+                PID=""
+                PROCESS=""
+                SERVICE=""
+                STATUS=""
+                sleep 10
+	fi
+done
+

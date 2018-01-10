@@ -1,0 +1,31 @@
+- name: Create a Linux VM from a template
+  vmware_guest:
+    hostname: "{{ vmware_linux_vcenter_hostname }}"
+    username: "{{ vmware_linux_vcenter_username }}"
+    password: "{{ vmware_linux_vcenter_password }}"
+    validate_certs: no
+    name: "{{ vmware_linux_hostname }}"
+    annotation: "Created by ansible"
+    datacenter: "{{ vmware_linux_datacenter }}"
+    cluster: "{{ vmware_linux_cluster }}"
+    resource_pool: "{{ vmware_linux_resource_pool | default(omit) }}"
+    folder: "{{ vmware_linux_folder | default(omit) }}"
+    state: poweredon
+    template: "{{ vmware_linux_template }}"
+    disk:
+    - size_gb: "{{ vmware_linux_disk_size }}"
+      datastore: "{{ vmware_linux_datastore }}"
+    hardware:
+      memory_mb: "{{ vmware_linux_memory }}"
+      num_cpus: "{{ vmware_linux_vcpus }}"
+      scsi: paravirtual
+    networks:
+    - name: "{{ vmware_linux_network | default('VM Network') }}"
+      ip: "{{ vmware_linux_ip }}"
+      netmask: "{{ vmware_linux_netmask }}"
+      gateway: "{{ vmware_linux_gateway }}"
+    customization:
+      dns_servers: "{{ vmware_linux_dns_servers }}"
+      domain: "{{ vmware_linux_domain }}"
+    wait_for_ip_address: yes
+  delegate_to: localhost

@@ -1,0 +1,98 @@
+- name: Installing epel
+  yum:
+    name: epel-release
+    state: present
+
+
+- name: Install rabbitmq-server 
+  yum: name=rabbitmq-server state=present
+
+
+- name: Enables the rabbitmq_management plugin
+  rabbitmq_plugin:
+    names: rabbitmq_management
+    state: enabled
+
+
+- name: Copy Rabbitmq unit file 
+  shell: cp -f /usr/lib/systemd/system/rabbitmq-server.service /etc/systemd/system/rabbitmq-server.service
+
+
+- name: Change the Rabbit max open file limit
+  lineinfile:
+    path: /etc/systemd/system/rabbitmq-server.service
+    insertafter: 'Service'
+    line: 'LimitNOFILE=250000'
+
+
+- name: Reload systemctl
+  shell: systemctl daemon-reload
+
+
+- name: Create RabbitMQ configuration
+  template: src="rabbitmq.config.j2" dest="/etc/rabbitmq/rabbitmq.config"
+  notify: 
+    - restart rabbitmq-server
+
+
+- name: Enable rabbitmq-server
+  systemd:
+    name: rabbitmq-server
+    enabled: yes
+    state: started
+
+
+- name: add users
+  rabbitmq_user: 
+    user: "{{ rabbitmq_admin_user }}"
+    password: "{{ rabbitmq_admin_password }}"
+    tags: administrator
+    vhost: / 
+    configure_priv: .*
+    write_priv: .* 
+    read_priv: .* 
+    state: present
+
+
+- name: Remove guest user
+  rabbitmq_user:
+    user: guest
+    state: absent
+
+
+- name: Copy rabbitmq watchdog daemon
+  template:
+    src: rabbitmq-watchdog.j2
+    dest: /usr/local/bin/rabbitmq-watchdog
+    owner: root
+    group: root
+    mode: 0755
+
+
+- name: Copy rabbitmq watchdog unit
+  copy:
+    src: rabbitmq-watchdog.service
+    dest: /etc/systemd/system/rabbitmq-watchdog.service
+    owner: root
+    group: root
+    mode: 0644
+  
+
+- name: Reload systemctl
+  shell: systemctl daemon-reload
+
+
+- name: Enable rabbitmq-watchdog
+  systemd:
+    name: rabbitmq-watchdog
+    enabled: yes
+    state: started
+  when: rabbitmq_enable_watchdog
+
+
+- name: Disable rabbitmq-watchdog
+  systemd:
+    name: rabbitmq-watchdog
+    enabled: no
+    state: stopped
+  when: not rabbitmq_enable_watchdog

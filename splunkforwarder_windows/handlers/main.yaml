@@ -1,0 +1,4 @@
+- name: restart splunkforwarder
+  win_service: 
+    name: SplunkForwarder Service 
+    state: restarted

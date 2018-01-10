@@ -1,0 +1,37 @@
+---
+
+# Groups role
+# Adding or removing groups
+#
+# Actions:
+# - Adding group if 'groups_add' variable is defined
+# - Setting gid if 'groups_gid' variable is defined
+# - Removing group if 'groups_remove' variable is defined
+#
+# Compatibility version: 2.3
+#
+# Variables:
+# Mandatory
+# - groups_name (group name)
+#
+# Dependant
+# - groups_add (to add group)
+# - groups_gid (group gid)
+# - groups_remove (to remove group)
+
+- name: Adding group {{ groups_name }}
+  group:
+    name: "{{ groups_name }}"
+  when: groups_name is defined and groups_add is defined and groups_add
+
+- name: Setting GID for {{ groups_name }}
+  group:
+    name: "{{ groups_name }}"
+    gid: "{{ groups_gid }}"
+  when: groups_name is defined and groups_gid is defined
+
+- name: Removing group {{ groups_name }}
+  group:
+    name: "{{ groups_name }}"
+    state: absent
+  when: groups_name is defined and groups_remove is defined and groups_remove

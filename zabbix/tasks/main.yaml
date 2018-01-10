@@ -1,0 +1,87 @@
+---
+
+# Zabbix role
+# Deploying zabbix agent
+#
+# Actions:
+# - Installing zabbix repository
+# - Installing zabbix-agent
+# - Setting source IP if 'zabbix_ip' variable is defined
+# - Setting listen IP if 'zabbix_ip' variable is defined
+# - Setting server IP
+# - Setting server active IP
+# - Setting hostname
+# - Starting agent
+#
+# Compatibility version: 2.3
+#
+# Variables:
+# Optional
+# - zabbix_ip (source IP on which zabbix agent is listening and which is used
+#              for outgoing connections)
+
+- name: Install zabbix repository
+  apt:
+    deb: http://repo.zabbix.com/zabbix/3.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_3.0-1+xenial_all.deb
+    update_cache: yes
+    state: present
+  when: ansible_distribution == "Ubuntu"
+
+- name: Installing zabbix agent
+  apt:
+    name: zabbix-agent
+    state: present
+  when: ansible_distribution == "Ubuntu"
+
+
+- name: Installing zabbix repository
+  yum:
+    name: http://repo.zabbix.com/zabbix/3.0/rhel/7/x86_64/zabbix-release-3.0-1.el7.noarch.rpm
+    update_cache: yes
+    state: present
+  when: ansible_distribution == "CentOS"
+
+- name: Installing zabbix agent
+  yum:
+    name: zabbix-agent
+    state: present
+  when: ansible_distribution == "CentOS"
+
+- name: Setting source IP
+  lineinfile:
+    path: /etc/zabbix/zabbix_agentd.conf
+    regexp: "^# SourceIP="
+    line: "SourceIP={{ zabbix_ip }}"
+  when: zabbix_ip is defined
+
+- name: Setting listen IP
+  lineinfile:
+    path: /etc/zabbix/zabbix_agentd.conf
+    regexp: "^# ListenIP="
+    line: "ListenIP={{ zabbix_ip }}"
+  when: zabbix_ip is defined
+
+- name: Setting server IP
+  lineinfile:
+    path: /etc/zabbix/zabbix_agentd.conf
+    regexp: "^Server="
+    line: "Server=10.13.36.110"
+
+- name: Setting server active IP
+  lineinfile:
+    path: /etc/zabbix/zabbix_agentd.conf
+    regexp: "^ServerActive="
+    line: "ServerActive=10.13.36.110"
+
+- name: Setting hostname
+  lineinfile:
+    path: /etc/zabbix/zabbix_agentd.conf
+    regexp: "^Hostname="
+    line: "Hostname={{ ansible_hostname }}"
+
+- name: Starting agent
+  systemd:
+    name: zabbix-agent
+    state: started
+    enabled: yes
+  when: ansible_distribution == "CentOS"

@@ -1,0 +1,45 @@
+---
+
+# Kernel role
+# Adding or removing kernel parameters
+#
+# Actions:
+# - Adding kernel parameter if 'kernel_value' variable is defined
+# - Removing kernel parameter if 'kernel_remove'  variable is defined
+# - Reloading kernel parameters if 'kernel_reload' variable is defined
+#
+# Compatibility version: 2.3
+#
+# Variables:
+# Mandatory
+# - kernel_parameter (sysctl variable)
+#
+# Dependant
+# - kernel_value (sysctl variable value)
+# - kernel_file (absolute path to sysctl config file)
+# - kernel_remove (to remove parameter)
+#
+# Optional
+# - kernel_reload (to reload kernel parameters)
+
+- name: Adding parameter {{ kernel_parameter }}
+  sysctl:
+    name: "{{ kernel_parameter }}"
+    value: "{{ kernel_value }}"
+    sysctl_set: yes
+    sysctl_file: "{{ kernel_file }}"
+    reload: no
+    state: present
+  when: kernel_parameter is defined and kernel_value is defined and kernel_file is defined
+
+- name: Removing parameter {{ kernel_parameter }}
+  sysctl:
+    name: "{{ kernel_parameter }}"
+    sysctl_file: "{{ kernel_file }}"
+    reload: no
+    state: absent
+  when: kernel_parameter is defined and kernel_file is defined and kernel_remove is defined and kernel_remove
+
+- name: Reloading parameters
+  command: /usr/sbin/sysctl -p
+  when: kernel_reload is defined and kernel_reload

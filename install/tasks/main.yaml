@@ -1,0 +1,55 @@
+---
+
+# Install role
+# Installing or removing packages
+#
+# Actions:
+# - Installing packages defined in a variable if 'install_add' and
+#   'install_packages' variables are defined
+# - Installing packages defined in a file if 'install_add' and 'install_file'
+#   variables are defined
+# - Removing packages defined in a variable if 'install_remove' and
+#   'install_packages' variables are defined
+# - Removing packages defined in a file if 'install_remove' and 'install_file'
+#   variables are defined
+#
+# Compatibility version: 2.3
+#
+# Variables:
+# Mandatory
+# - install_packages (to install packages defined in a variable, this can be
+#                     coma separated list of packages or package groups)
+# - install_file (to install packages defined in a file, the path is relative
+#                 and the current playbook directory is a root)
+#
+# Dependant
+# - install_add (to install if True)
+# - install_remove (to remove if True)
+
+- name: Installing packages defined in a variable {{ install_packages }}
+  yum:
+    name: "{{ install_packages }}"
+    update_cache: yes
+    state: present
+  when: install_packages is defined and install_add is defined and install_add
+
+- name: Installing packages defined in a file {{ install_file }}
+  yum:
+    name: "{{ item }}"
+    update_cache: yes
+    state: present
+  with_lines: /usr/bin/cat "{{ playbook_dir }}/{{ install_file }}"
+  when: install_file is defined and install_add is defined and install_add
+
+- name: Removing packages defined in a variable {{ install_packages }}
+  yum:
+    name: "{{ install_packages }}"
+    state: absent
+  when: install_packages is defined and install_remove is defined and install_remove
+
+- name: Removing packages defined in a file {{ install_file }}
+  yum:
+    name: "{{ item }}"
+    state: absent
+  with_lines: /usr/bin/cat "{{ playbook_dir }}/{{ install_file }}"
+  when: install_file is defined and install_remove is defined and install_remove

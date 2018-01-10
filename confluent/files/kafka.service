@@ -1,0 +1,14 @@
+[Unit]
+Description=Apache Kafka server (broker)
+After=network.target remote-fs.target zookeeper.service
+
+[Service]
+SyslogIdentifier = confluent-kafka
+Type=simple
+User=confluent
+Group=confluent
+ExecStart=/usr/bin/kafka-server-start /etc/kafka/server.properties
+ExecStop=/usr/bin/kafka-server-stop
+
+[Install]
+WantedBy=multi-user.target

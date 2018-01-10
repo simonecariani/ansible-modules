@@ -1,0 +1,71 @@
+- name: Adding Cassandra cluster members to hosts file
+  lineinfile:
+    dest: /etc/hosts
+    regexp: '^{{ hostvars[item].ansible_default_ipv4.address|replace(".", "\.") }}'
+    line: "{{ hostvars[item].ansible_default_ipv4.address }} {{ hostvars[item].ansible_hostname }}"
+    state: present
+  with_items: "{{ groups[cassandra_cluster_name] }}"
+
+- name: reload firewall
+  shell: firewall-cmd --reload
+  ignore_errors: yes
+
+- name: Import Cassandra repo 
+  copy:
+    src: cassandra.repo
+    dest: /etc/yum.repos.d/cassandra.repo 
+    owner: root
+    group: root   
+    mode: 0644
+
+- name: Clean yum cache
+  shell: yum clean all
+
+- name: Install Cassandra
+  yum:
+    name: cassandra
+    state: present
+
+- name: Set permissions of Cassandra directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: cassandra
+    group: cassandra
+    mode: 0755
+  with_items:
+    - "{{ cassandra_datadir|default('/var/lib/cassandra') }}/hints"
+    - "{{ cassandra_datadir|default('/var/lib/cassandra') }}/data"
+    - "{{ cassandra_datadir|default('/var/lib/cassandra') }}/commitlog"
+    - "{{ cassandra_datadir|default('/var/lib/cassandra') }}/saved_caches"
+
+
+- name: Set Cassandra conf
+  template:
+    src: cassandra.yaml.j2
+    dest: /etc/cassandra/conf/cassandra.yaml
+  notify:
+    - restart cassandra
+
+- name: disable JMX monitoring auth
+  replace:
+    path: /etc/cassandra/default.conf/cassandra-env.sh
+    regexp: '^  JVM_OPTS="\$JVM_OPTS -Dcom.sun.management.jmxremote.authenticate=true"'
+    replace: '  JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.authenticate=false"'
+  notify:
+    - restart cassandra
+
+- name: enable remote JMX monitoring
+  lineinfile:
+    path: /etc/cassandra/default.conf/cassandra-env.sh
+    insertafter: '^JMX_PORT.*'
+    line: 'LOCAL_JMX=no'
+  notify:
+    - restart cassandra
+
+- name: Start Cassandra service and enable at startup
+  service:
+    name: cassandra
+    state: started
+    enabled: yes
+

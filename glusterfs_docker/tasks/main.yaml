@@ -1,0 +1,94 @@
+- name: Adding cluster members to hosts file
+  lineinfile:
+    dest: /etc/hosts
+    regexp: '^{{ hostvars[item].ansible_default_ipv4.address|replace(".", "\.") }}'
+    line: "{{ hostvars[item].ansible_default_ipv4.address }} {{ hostvars[item].ansible_hostname }}"
+    state: present
+  with_items: "{{ groups[glusterfs_cluster_name] }}"
+
+- name: reload firewall
+  shell: firewall-cmd --reload
+  ignore_errors: yes
+
+- name: Installing glusterfs specific version repo
+  yum:
+    name: "centos-release-gluster{{ glusterfs_install }}"
+    state: present
+  when: glusterfs_install is defined
+
+- name: Clean yum cache
+  shell: yum clean all
+
+- name: Installing glusterfs
+  yum:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - glusterfs
+    - glusterfs-cli
+    - glusterfs-libs
+    - glusterfs-server
+
+- name: Enabling gluster
+  systemd:
+    name: glusterd
+    enabled: yes
+    state: started
+
+- name: Create glusterfs directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: 0755
+    recurse: yes
+  with_items:
+    - "{{ glusterfs_docker_brick_volume_mount }}"
+    - "{{ glusterfs_docker_swarm_volume_mount }}"
+ 
+- name: Format the gluster brick device 
+  filesystem:
+    fstype: xfs
+    dev: "{{ glusterfs_docker_brick_volume }}"
+
+- name: Mount gluster brick volume
+  mount:
+    path: "{{ glusterfs_docker_brick_volume_mount }}"
+    src: "{{ glusterfs_docker_brick_volume }}"
+    fstype: xfs
+    state: mounted
+
+- name: Create an empty list
+  set_fact:
+    list: [] 
+  tags: gluster
+  run_once: true
+
+- name: Create a list with gluster name peers
+  set_fact: 
+    list: "{{ list }} + ['{{ hostvars[item].ansible_hostname }}']"
+  with_items:
+    - "{{ groups[glusterfs_cluster_name] }}"
+  run_once: true
+
+- name: Create gluster volume
+  gluster_volume:
+    state: present
+    name: "{{ glusterfs_docker_gluster_replica }}"
+    bricks: "{{ glusterfs_docker_brick_volume_mount }}"
+    replicas: 3
+    force: yes
+    cluster: "{{ list }}"
+  run_once: true
+
+- name: Start gluster volume
+  gluster_volume:
+    state: started
+    name: "{{ glusterfs_docker_gluster_replica }}"
+
+- name: Mount gluster volume used by docker
+  mount:
+    path: "{{ glusterfs_docker_swarm_volume_mount }}"
+    src: "localhost:/{{ glusterfs_docker_gluster_replica }}"
+    opts: "defaults,_netdev"
+    fstype: glusterfs
+    state: mounted
